@@ -1,0 +1,84 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.preprocessing import StandardScaler
+from google.colab import files
+from PIL import Image
+import os
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+
+dataset_path = '/content/drive/MyDrive/dogs-vs-cats'
+
+def load_and_preprocess_image(file_path):
+    img = Image.open(file_path).convert('L')  
+    img = img.resize((64, 64))  
+    return np.array(img).flatten()  
+
+X = []
+y = []
+
+for category in ['cat', 'dog']:
+    path = os.path.join(dataset_path, category)
+    class_num = 1 if category == 'dog' else 0
+    for img in os.listdir(path):
+        try:
+            img_array = load_and_preprocess_image(os.path.join(path, img))
+            X.append(img_array)
+            y.append(class_num)
+        except Exception as e:
+            print(f"Error processing {img}: {e}")
+
+X = np.array(X)
+y = np.array(y)
+
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+
+svm_classifier = SVC(kernel='rbf', C=1.0, random_state=42)
+svm_classifier.fit(X_train_scaled, y_train)
+
+
+y_pred = svm_classifier.predict(X_test_scaled)
+
+print("Confusion Matrix:")
+print(confusion_matrix(y_test, y_pred))
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+
+def predict_image(file_path):
+    img_array = load_and_preprocess_image(file_path)
+    img_array_scaled = scaler.transform([img_array])
+    prediction = svm_classifier.predict(img_array_scaled)
+    return "Dog" if prediction[0] == 1 else "Cat"
+
+uploaded = files.upload()
+for filename in uploaded.keys():
+    prediction = predict_image(filename)
+    print(f"The image {filename} is predicted to be a {prediction}")
+
+
+def plot_images(images, labels, predictions):
+    fig, axes = plt.subplots(2, 5, figsize=(20, 8))
+    axes = axes.ravel()
+    for i in range(10):
+        axes[i].imshow(images[i].reshape(64, 64), cmap='gray')
+        axes[i].set_title(f"True: {labels[i]}\nPred: {predictions[i]}")
+        axes[i].axis('off')
+    plt.tight_layout()
+    plt.show()
+
+sample_images = X_test[:10]
+sample_labels = ['Cat' if label == 0 else 'Dog' for label in y_test[:10]]
+sample_predictions = ['Cat' if pred == 0 else 'Dog' for pred in y_pred[:10]]
+plot_images(sample_images, sample_labels, sample_predictions)
